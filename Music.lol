@@ -827,7 +827,7 @@ end
 
 ctrl(-27, 84, 24, "prev", "◀◀", 10, function() step(-1) end)
 local _, setPlay = ctrl(0, 94, 27, "play", "▶", 13, function() toggle() end)
-_.Position += UDim2.fromOffset(0,-4) 
+_.Position += UDim2.fromOffset(0,-4)
 ctrl(27, 84, 24, "next", "▶▶", 10, function() step(1) end)
 
 local NAME_W = 116
@@ -1211,6 +1211,129 @@ task.spawn(function()
     end
     setName(#songs > 0 and "nothing playing" or "no songs found", .55)
     ready = true
+end)
+
+-- Mobile toggle button (separate ScreenGui so it survives Gui.Enabled = false)
+do
+    local isMobile = UIS.TouchEnabled
+    if isMobile then
+        local MobileGui = make("ScreenGui", Player:WaitForChild("PlayerGui"), {
+            Name = "OrbituneMobile", IgnoreGuiInset = true, ResetOnSpawn = false, DisplayOrder = 10,
+        })
+        local savedPos = type(State.mobilePos) == "table" and State.mobilePos or nil
+        local ToggleBtn = make("TextButton", MobileGui, {
+            Size = UDim2.fromOffset(40, 40),
+            Position = savedPos and UDim2.new(savedPos.xs, savedPos.xo, savedPos.ys, savedPos.yo)
+                or UDim2.new(1, -56, 0, 60),
+            BackgroundColor3 = Color3.fromRGB(20, 20, 28), BackgroundTransparency = .25,
+            BorderSizePixel = 0, Text = "", AutoButtonColor = false, ZIndex = 100,
+        })
+        make("UICorner", ToggleBtn, { CornerRadius = UDim.new(1, 0) })
+        make("UIStroke", ToggleBtn, { Thickness = 1.5, Color = Color3.new(1, 1, 1), Transparency = .5 })
+        local ToggleIcon = make("TextLabel", ToggleBtn, {
+            Size = UDim2.fromScale(1, 1), BackgroundTransparency = 1, Text = "♪",
+            TextColor3 = Color3.new(1, 1, 1), Font = Enum.Font.BuilderSans, TextSize = 18,
+        })
+
+        local mDrag, mStart, mMoved = false, nil, false
+local pressScale = make("UIScale", ToggleBtn, { Scale = 1 })
+
+local function animateButton(pressed)
+    if pressed then
+        tween(pressScale, .1, { Scale = .88 }, Enum.EasingStyle.Quad)
+        tween(ToggleBtn, .1, {
+            BackgroundTransparency = .08
+        })
+        tween(ToggleIcon, .1, {
+            TextTransparency = .15
+        })
+    else
+        tween(pressScale, .2, { Scale = 1 }, Enum.EasingStyle.Back)
+        tween(ToggleBtn, .2, {
+            BackgroundTransparency = .25
+        })
+        tween(ToggleIcon, .2, {
+            TextTransparency = 0
+        })
+    end
+end
+
+connect(ToggleBtn.InputBegan, function(input)
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+        mDrag = true
+        mStart = input.Position
+        mMoved = false
+
+        animateButton(true)
+    end
+end)
+
+connect(UIS.InputChanged, function(input)
+    if not mDrag then return end
+
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseMovement then
+
+        local d = input.Position - mStart
+
+        if math.abs(d.X) > 6 or math.abs(d.Y) > 6 then
+            mMoved = true
+        end
+
+        if mMoved then
+            local p = ToggleBtn.Position
+
+            ToggleBtn.Position = UDim2.new(
+                p.X.Scale,
+                p.X.Offset + d.X,
+                p.Y.Scale,
+                p.Y.Offset + d.Y
+            )
+
+            mStart = input.Position
+        end
+    end
+end)
+
+connect(UIS.InputEnded, function(input)
+    if not mDrag then return end
+
+    if input.UserInputType == Enum.UserInputType.Touch
+        or input.UserInputType == Enum.UserInputType.MouseButton1 then
+
+        mDrag = false
+        animateButton(false)
+
+        if mMoved then
+            local p = ToggleBtn.Position
+
+            State.mobilePos = {
+                xs = p.X.Scale,
+                xo = p.X.Offset,
+                ys = p.Y.Scale,
+                yo = p.Y.Offset
+            }
+
+            saveState()
+        end
+    end
+end)
+
+connect(ToggleBtn.Activated, function()
+    if mMoved then return end
+
+    Gui.Enabled = not Gui.Enabled
+
+    if not Gui.Enabled then
+        for _, L in Lists do
+            L.target = 0
+        end
+
+        listOpen = false
+        zoneHover = false
+    end
 end)
 
 tween(HolderScale, .45, { Scale = Cfg.scale }, Enum.EasingStyle.Cubic)
